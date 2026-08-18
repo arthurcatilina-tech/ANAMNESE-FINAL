@@ -1020,6 +1020,29 @@ document.getElementById('modal-cancel').addEventListener('click',()=>document.ge
 document.getElementById('modal-save').addEventListener('click',()=>{localStorage.removeItem('anamnese_sessions');renderHistory();updateMetrics();renderTips();renderImprove();renderPerf();document.getElementById('overlay').style.display='none';});
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target===document.getElementById('overlay'))document.getElementById('overlay').style.display='none';});
 
+// ── CHECKLIST PEDIÁTRICO (Roteiro de Observação Clínica — Pediatria HC-UFPE 2025) ──
+const PED_CHECKLIST = `1. Identificação completa do paciente E do informante (nome, idade/idade corrigida, sexo, procedência, grau de parentesco do informante e confiabilidade)
+2. QPD ou "Motivo da consulta" corretamente formulado conforme o tipo de consulta (com queixa / doença crônica / puericultura de alto risco) e HDA em ordem cronológica com fatores de melhora/piora e medicações já usadas
+3. Interrogatório sintomatológico completo por sistemas (geral, pele/mucosas, olhos, ouvidos, boca/garganta, respiratório, cardiovascular, digestivo, geniturinário, musculoesquelético, neurológico)
+4. Antecedentes gestacionais (pré-natal, intercorrências, sorologias, vacinação da gestante, tabagismo/etilismo/drogas)
+5. Antecedentes perinatais e neonatais (tipo de parto, Apgar, peso/comprimento/PC ao nascer, icterícia, intercorrências) e triagens neonatais (olhinho, orelhinha, coraçãozinho, pezinho, linguinha)
+6. Alimentação (aleitamento materno exclusivo e duração, introdução alimentar, dieta atual) e Imunizações (cartão de vacina, calendário, reforços)
+7. Crescimento e desenvolvimento neuropsicomotor (marcos motores, fala, escolaridade/aprendizado) comparado às expectativas para a idade
+8. Doenças anteriores, internações, cirurgias e alergias
+9. Hábitos (sono, telas, chupeta/dedo, atividades recreativas) e história familiar (doenças hereditárias, heredograma, dinâmica familiar)
+10. Condições socioeconômicas e sociais (moradia, saneamento, renda, rede de apoio, violência doméstica quando aplicável)`;
+
+const PED_REG_CRITERIOS = `1. Identificação do paciente e do informante presente e completa
+2. QPD/Motivo da consulta corretamente formulado para o tipo de caso (com queixa, doença crônica ou puericultura)
+3. HDA cronológica e completa relacionada à queixa
+4. IS documentado por sistemas (não apenas os relacionados à queixa)
+5. Antecedentes gestacionais e perinatais/neonatais documentados (quando aplicável à idade do caso)
+6. Triagens neonatais, imunizações e alimentação/aleitamento documentados
+7. Crescimento e desenvolvimento neuropsicomotor documentado
+8. Antecedentes pessoais (doenças, internações, cirurgias, alergias) e familiares completos
+9. Sem diagnósticos antecipados — sintomas descritos como sintomas
+10. Ortografia, terminologia médica correta e organização do texto`;
+
 // ── SYSTEM PROMPT ──
 function buildPrompt() {
   const d={'Fácil':'simples e objetivos','Médio':'moderados com histórico relevante','Difícil':'complexos com múltiplas comorbidades e distratores'};
@@ -1051,7 +1074,7 @@ AVALIACAO_PERGUNTAS:
 [Avaliação detalhada em três blocos obrigatórios:
 
 BLOCO 1 — CHECKLIST (marque cada item com ✓ perguntou completo / ⚠ perguntou parcialmente / ✕ não perguntou):
-1. Identificação completa (nome, idade, profissão, procedência)
+${isPed ? PED_CHECKLIST : `1. Identificação completa (nome, idade, profissão, procedência)
 2. Queixa principal com duração
 3. HDA completa (início, localização, caracterização, irradiação, intensidade EVA, fatores de melhora/piora, sintomas associados)
 4. Interrogatório cardiovascular e respiratório
@@ -1060,7 +1083,7 @@ BLOCO 1 — CHECKLIST (marque cada item com ✓ perguntou completo / ⚠ pergunt
 7. Interrogatório pele, olhos e ouvidos
 8. Antecedentes pessoais (doenças, cirurgias, internações, ALERGIAS, medicamentos)
 9. Antecedentes familiares e hábitos de vida (tabagismo, etilismo, drogas, atividade física)
-10. História gineco-obstétrica (se mulher) OU condição socioeconômica e suporte social
+10. História gineco-obstétrica (se mulher) OU condição socioeconômica e suporte social`}
 
 BLOCO 2 — O QUE FOI BEM FEITO:
 Liste com ✓ cada ponto positivo da condução — o que o estudante perguntou de forma adequada, completa ou com boa técnica. Seja específico, cite as perguntas feitas.
@@ -1070,9 +1093,11 @@ Liste com ✕ cada lacuna ou falha — o que faltou perguntar, o que foi superfi
 
 Regras de nota:
 - 10 itens obrigatórios valem 1 ponto cada. Itens parcialmente cobertos valem 0.5.
-- NUNCA dê nota acima de 7.0 se faltaram alergias, antecedentes cirúrgicos ou interrogatório por sistemas completo.
+${isPed ? `- NUNCA dê nota acima de 7.0 se faltaram antecedentes gestacionais/perinatais, triagens neonatais ou interrogatório por sistemas completo.
+- NUNCA dê nota acima de 5.0 se faltou HDA (ou "Motivo da consulta") completa, alimentação/aleitamento ou desenvolvimento neuropsicomotor.
+- NUNCA dê nota acima de 3.0 se só foi perguntada a queixa principal.` : `- NUNCA dê nota acima de 7.0 se faltaram alergias, antecedentes cirúrgicos ou interrogatório por sistemas completo.
 - NUNCA dê nota acima de 5.0 se faltou HDA completa ou antecedentes pessoais.
-- NUNCA dê nota acima de 3.0 se só foi perguntada a queixa principal.]
+- NUNCA dê nota acima de 3.0 se só foi perguntada a queixa principal.`}]
 
 NOTA_REGISTRO: [deixar em branco]
 AVALIACAO_REGISTRO: [deixar em branco]
@@ -1229,7 +1254,7 @@ INSTRUÇÕES:
 Avalie de forma RIGOROSA e DETALHADA. Analise cada seção do registro.
 
 CRITÉRIOS DE NOTA (cada item vale 1 ponto — total 10):
-1. QPD presente e bem formulada (queixa + duração)
+${isPed ? PED_REG_CRITERIOS : `1. QPD presente e bem formulada (queixa + duração)
 2. HDA completa (início, localização, caracterização, irradiação, EVA, fatores de melhora/piora, sintomas associados)
 3. IS — sistemas cardiovascular e respiratório documentados
 4. IS — sistemas digestivo e urinário documentados
@@ -1238,7 +1263,7 @@ CRITÉRIOS DE NOTA (cada item vale 1 ponto — total 10):
 7. Antecedentes familiares documentados
 8. Hábitos de vida (tabagismo, etilismo, drogas, atividade física)
 9. Sem diagnósticos antecipados — sintomas descritos como sintomas, não como diagnósticos
-10. Ortografia, terminologia médica correta e organização do texto
+10. Ortografia, terminologia médica correta e organização do texto`}
 
 PENALIDADES:
 - -1.0 por cada diagnóstico antecipado
