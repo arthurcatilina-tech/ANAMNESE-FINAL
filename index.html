@@ -1121,9 +1121,6 @@ ${isPed ? `- NUNCA dê nota acima de 7.0 se faltaram antecedentes gestacionais/p
 - NUNCA dê nota acima de 5.0 se faltou HDA completa ou antecedentes pessoais.
 - NUNCA dê nota acima de 3.0 se só foi perguntada a queixa principal.`}]
 
-NOTA_REGISTRO: [deixar em branco]
-AVALIACAO_REGISTRO: [deixar em branco]
-
 DIAGNOSTICO: [diagnóstico do caso clínico]`;
 }
 
@@ -1162,7 +1159,18 @@ function addErr(txt) {
 // ── PARSE FEEDBACK ──
 function parseFeedback(text) {
   const get=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n[A-Z_]+:|$)','i');const m=text.match(rx);return m?m[1].trim():'';};
-  return {nota1:parseFloat(get('NOTA_PERGUNTAS'))||null, avPerguntas:get('AVALIACAO_PERGUNTAS'), diagnostico:get('DIAGNOSTICO'), nomePaciente:get('NOME_PACIENTE')};
+  const nota1raw=get('NOTA_PERGUNTAS');
+  const nota1=parseFloat(nota1raw);
+  let avPerguntas=get('AVALIACAO_PERGUNTAS');
+  const diagnostico=get('DIAGNOSTICO')||'—';
+  const nomePaciente=get('NOME_PACIENTE');
+
+  if (isNaN(nota1) || !avPerguntas) {
+    console.warn('[anamnese] Falha ao interpretar a avaliação — texto bruto recebido:', text);
+    if (!avPerguntas) avPerguntas = `⚠ Não foi possível estruturar a avaliação automaticamente. Resposta bruta da IA:\n\n${text}`;
+  }
+
+  return {nota1: isNaN(nota1)?null:nota1, avPerguntas, diagnostico, nomePaciente};
 }
 
 function scoreColor(n) {
@@ -1318,17 +1326,32 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
 ]`;
 
   try {
-    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'/no_think'},{role:'user',content:regPrompt}],max_tokens:3072,temperature:0.3})});
+    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:4096,temperature:0})});
     const data=await r.json();
-    const reply=data?.choices?.[0]?.message?.content||'';
+    console.log('[anamnese] submitRegistro raw response', data);
+    const errMsg = data?.error?.message || (typeof data?.error==='string' ? data.error : null) || data?.message;
+    if (!r.ok || errMsg) {
+      regWrap.innerHTML=`<div style="background:rgba(224,82,82,0.15);color:#E05252;padding:12px 16px;border-radius:12px;font-size:13px;border:1px solid rgba(224,82,82,0.2)">⚠ Erro ao avaliar o registro: ${errMsg||('HTTP '+r.status)}. <button id="reg-retry-btn" style="margin-left:8px;text-decoration:underline;background:none;border:none;color:#E05252;cursor:pointer">Tentar novamente</button></div>`;
+      const rb=document.getElementById('reg-retry-btn'); if(rb) rb.addEventListener('click',()=>submitRegistro(fb,mainWrap,regWrap));
+      return;
+    }
+    const reply=(data?.choices?.[0]?.message?.content||'').trim();
+    if (!reply) {
+      console.warn('[anamnese] submitRegistro: resposta vazia da IA', data);
+      regWrap.innerHTML=`<div style="background:rgba(224,82,82,0.15);color:#E05252;padding:12px 16px;border-radius:12px;font-size:13px;border:1px solid rgba(224,82,82,0.2)">⚠ A IA retornou uma resposta vazia ao avaliar o registro. <button id="reg-retry-btn" style="margin-left:8px;text-decoration:underline;background:none;border:none;color:#E05252;cursor:pointer">Tentar novamente</button></div>`;
+      const rb=document.getElementById('reg-retry-btn'); if(rb) rb.addEventListener('click',()=>submitRegistro(fb,mainWrap,regWrap));
+      return;
+    }
     const nota2match=reply.match(/NOTA_REGISTRO:\s*([\d.]+)/i);
     const nota2=nota2match?parseFloat(nota2match[1]):null;
+    if (nota2===null) console.warn('[anamnese] Não foi possível extrair NOTA_REGISTRO — texto bruto:', reply);
     const col2 = scoreColor(nota2);
     const pct2 = nota2 !== null ? (nota2/10)*100 : 0;
 
     const getSection=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n[A-Z_]+:|###INICIO|$)','i');const m=reply.match(rx);return m?m[1].trim():'';};
-    const oBem = getSection('O_QUE_FOI_BEM');
-    const oFaltou = getSection('O_QUE_FALTOU');
+    let oBem = getSection('O_QUE_FOI_BEM');
+    let oFaltou = getSection('O_QUE_FALTOU');
+    if (!oBem && !oFaltou) { oBem = `⚠ Não foi possível estruturar a avaliação. Resposta bruta da IA:\n\n${reply}`; }
 
     // Parse comparativos estruturados
     const compRegex=/###INICIO_COMPARATIVO###([\s\S]*?)###FIM_COMPARATIVO###/g;
@@ -1450,7 +1473,7 @@ async function callAPI(userText, silent=false) {
   if(!silent) addMsg('user',userText);
   messages.push({role:'user',content:userText}); showTyping();
 
-  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:buildPrompt()+'\n\n/no_think'},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:3072,temperature:0.7});
+  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:4096,temperature:0.6});
 
   let data, httpOk=true, httpStatus=0;
   try {
