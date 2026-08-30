@@ -1296,7 +1296,7 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
 ]`;
 
   try {
-    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'meta/llama-3.3-70b-instruct',messages:[{role:'user',content:regPrompt}],max_tokens:2048,temperature:0.3})});
+    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'/no_think'},{role:'user',content:regPrompt}],max_tokens:3072,temperature:0.3})});
     const data=await r.json();
     const reply=data?.choices?.[0]?.message?.content||'';
     const nota2match=reply.match(/NOTA_REGISTRO:\s*([\d.]+)/i);
@@ -1428,7 +1428,7 @@ async function callAPI(userText, silent=false) {
   if(!silent) addMsg('user',userText);
   messages.push({role:'user',content:userText}); showTyping();
 
-  const body=JSON.stringify({model:'meta/llama-3.3-70b-instruct',messages:[{role:'system',content:buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:2048,temperature:0.7});
+  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:buildPrompt()+'\n\n/no_think'},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:3072,temperature:0.7});
 
   let data, httpOk=true, httpStatus=0;
   try {
