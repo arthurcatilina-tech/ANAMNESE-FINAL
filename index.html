@@ -1455,7 +1455,13 @@ async function callAPI(userText, silent=false) {
   // resposta 200 mas sem conteúdo utilizável — não mostra bolha vazia
   if (!reply) {
     messages.pop();
-    addErr('A IA retornou uma resposta vazia. Tente novamente — se persistir, pode ser limite de uso do modelo.');
+    const finishReason = data?.choices?.[0]?.finish_reason;
+    const diag = [
+      `HTTP ${httpStatus}`,
+      finishReason ? `finish_reason: ${finishReason}` : null,
+      data ? `payload: ${JSON.stringify(data).slice(0,300)}` : null
+    ].filter(Boolean).join(' · ');
+    addErr(`A IA retornou uma resposta vazia. ${diag}`);
     isLoading=false; document.getElementById('send-btn').disabled=false;
     return;
   }
