@@ -1430,14 +1430,36 @@ async function callAPI(userText, silent=false) {
 
   const body=JSON.stringify({model:'meta/llama-3.1-70b-instruct',messages:[{role:'system',content:buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:2048,temperature:0.7});
 
-  let data;
-  try { const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body}); data=await r.json(); }
-  catch(e){data={error:{message:e.message}};}
+  let data, httpOk=true, httpStatus=0;
+  try {
+    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body});
+    httpOk=r.ok; httpStatus=r.status;
+    data=await r.json();
+  } catch(e){ data={error:{message:e.message}}; httpOk=false; }
+
+  console.log('[anamnese] API raw response', {httpOk, httpStatus, data});
 
   hideTyping();
-  if(data?.error){addErr(data.error.message);isLoading=false;document.getElementById('send-btn').disabled=false;return;}
 
-  const reply=data?.choices?.[0]?.message?.content||'';
+  // erro explícito retornado pelo proxy
+  const errMsg = data?.error?.message || (typeof data?.error==='string' ? data.error : null) || data?.message;
+  if (!httpOk || errMsg) {
+    messages.pop(); // remove a mensagem do usuário que não teve resposta, pra poder reenviar
+    addErr(errMsg ? `Erro da API: ${errMsg}` : `Erro ao contatar o servidor (HTTP ${httpStatus}). Tente novamente.`);
+    isLoading=false; document.getElementById('send-btn').disabled=false;
+    return;
+  }
+
+  const reply=(data?.choices?.[0]?.message?.content||'').trim();
+
+  // resposta 200 mas sem conteúdo utilizável — não mostra bolha vazia
+  if (!reply) {
+    messages.pop();
+    addErr('A IA retornou uma resposta vazia. Tente novamente — se persistir, pode ser limite de uso do modelo.');
+    isLoading=false; document.getElementById('send-btn').disabled=false;
+    return;
+  }
+
   messages.push({role:'assistant',content:reply});
 
   if(reply.includes('NOTA_PERGUNTAS')){
