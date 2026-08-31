@@ -1089,6 +1089,25 @@ REGRAS ABSOLUTAS:
 QUANDO O ESTUDANTE DISSER QUE TERMINOU (ex: "terminamos", "encerrei", "pode sair"):
 Saia do personagem e forneça avaliação RIGOROSA E DETALHADA no seguinte formato EXATO:
 
+⚠️ DISTINÇÃO OBRIGATÓRIA — IS ≠ EXAME FÍSICO (vale para TODOS os sistemas, não só cardiovascular):
+Esta é uma simulação de ANAMNESE (entrevista/interrogatório), não de exame físico. O Interrogatório Sintomatológico (IS) é composto EXCLUSIVAMENTE por sintomas relatados pelo PACIENTE em resposta a perguntas — nunca por achados objetivos de exame físico (ausculta, palpação, percussão, inspeção clínica), que NÃO foram realizados nesta simulação e não devem ser mencionados em NENHUM sistema. Use esta referência para TODOS os sistemas do IS:
+
+| Sistema | IS correto (sintoma perguntado) | ERRADO (achado de exame físico — nunca usar) |
+|---|---|---|
+| Cardiovascular | dor torácica, palpitação, dispneia aos esforços, edema de MMII, síncope | "sem sopros", "bulhas normofonéticas", "pulso regular" |
+| Respiratório | tosse, dispneia, sibilância, dor torácica ventilatório-dependente, hemoptise | "MV+ sem RA", "sem estertores", "expansibilidade preservada" |
+| Digestivo | náusea, vômito, dor abdominal, alteração do hábito intestinal, disfagia, pirose | "abdome flácido e indolor", "RHA+", "sem massas palpáveis" |
+| Urinário/Geniturinário | disúria, polaciúria, hematúria, urgência miccional, corrimento | "loja renal livre", "sem globo vesical" |
+| Neurológico | cefaleia, tontura, convulsão, alteração de força/sensibilidade, síncope | "sem déficits focais", "pupilas isocóricas fotorreagentes" |
+| Musculoesquelético | dor articular/óssea, edema, deformidade, limitação de movimento | "força grau V", "sem edema articular à palpação" |
+| Pele e mucosas | rash, prurido, icterícia, lesões, alteração de coloração | "pele íntegra, sem lesões" |
+| Olhos | dor ocular, fotofobia, secreção, visão turva | "pupilas isocóricas", "conjuntivas coradas" |
+| Ouvidos | otalgia, secreção, zumbido, perda auditiva | "MT íntegra à otoscopia" |
+| Boca/garganta | odinofagia, aftas, sangramento gengival, rouquidão | "orofaringe sem hiperemia" |
+| Geral | febre, perda de peso, fadiga, sudorese noturna | "bom estado geral", "afebril ao toque" |
+
+Ao apontar o que faltou perguntar em QUALQUER sistema do IS, use sempre a coluna "IS correto" acima como referência de linguagem — NUNCA a coluna de exame físico.
+
 NOME_PACIENTE: [nome completo do paciente que você criou]
 
 NOTA_PERGUNTAS: [número de 0 a 10 com UMA casa decimal — seja RIGOROSO, use os critérios abaixo]
@@ -1158,7 +1177,7 @@ function addErr(txt) {
 
 // ── PARSE FEEDBACK ──
 function parseFeedback(text) {
-  const get=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n[A-Z_]+:|$)','i');const m=text.match(rx);return m?m[1].trim():'';};
+  const get=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n(?:NOME_PACIENTE|NOTA_PERGUNTAS|AVALIACAO_PERGUNTAS|DIAGNOSTICO):|$)','i');const m=text.match(rx);return m?m[1].trim():'';};
   const nota1raw=get('NOTA_PERGUNTAS');
   const nota1=parseFloat(nota1raw);
   let avPerguntas=get('AVALIACAO_PERGUNTAS');
@@ -1283,6 +1302,9 @@ ${text}
 INSTRUÇÕES:
 Avalie de forma RIGOROSA e DETALHADA. Analise cada seção do registro.
 
+⚠️ DISTINÇÃO OBRIGATÓRIA — IS ≠ EXAME FÍSICO:
+Este registro é de ANAMNESE (entrevista), não de exame físico. O Interrogatório Sintomatológico (IS) contém EXCLUSIVAMENTE sintomas relatados pelo paciente (ex: "nega dispneia, palpitação, dor torácica, edema de MMII"). NUNCA sugira ou corrija o IS usando achados de exame físico (ausculta, "sem sopros", "pulso regular", "MV+ sem RA", palpação, percussão) — isso é EXAME FÍSICO e não deve aparecer nem no que o estudante escreveu nem na sua sugestão de "como deveria ser" para o IS. Se o estudante confundiu IS com exame físico no próprio registro, aponte esse erro conceitual — mas ao sugerir a versão correta do IS, use apenas linguagem de sintoma relatado, nunca de achado semiológico.
+
 CRITÉRIOS DE NOTA (cada item vale 1 ponto — total 10):
 ${isPed ? PED_REG_CRITERIOS : `1. QPD presente e bem formulada (queixa + duração)
 2. HDA completa (início, localização, caracterização, irradiação, EVA, fatores de melhora/piora, sintomas associados)
@@ -1319,19 +1341,18 @@ COMPARATIVOS:
 ###INICIO_COMPARATIVO###
 TITULO: [título curto do problema, ex: "HDA — intensidade da dor"]
 ESCRITO: [exatamente o que o estudante escreveu, ou "ausente" se não escreveu nada]
-CORRETO: [como deveria ter sido escrito no prontuário, com a linguagem técnica correta]
+CORRETO: [como deveria ter sido escrito, com a linguagem técnica correta — texto CORRIDO, sem usar rótulos de seção como "QPD:", "HDA:", "IS:" dentro deste campo, mesmo se o problema for de organização geral]
 MOTIVO: [em 1 linha: por que essa forma é a correta]
 ###FIM_COMPARATIVO###
 
 ]`;
 
   try {
-    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:4096,temperature:0})});
-    const data=await r.json();
-    console.log('[anamnese] submitRegistro raw response', data);
-    const errMsg = data?.error?.message || (typeof data?.error==='string' ? data.error : null) || data?.message;
-    if (!r.ok || errMsg) {
-      regWrap.innerHTML=`<div style="background:rgba(224,82,82,0.15);color:#E05252;padding:12px 16px;border-radius:12px;font-size:13px;border:1px solid rgba(224,82,82,0.2)">⚠ Erro ao avaliar o registro: ${errMsg||('HTTP '+r.status)}. <button id="reg-retry-btn" style="margin-left:8px;text-decoration:underline;background:none;border:none;color:#E05252;cursor:pointer">Tentar novamente</button></div>`;
+    const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:4096,temperature:0});
+    const {data, httpOk, httpStatus, errMsg} = await fetchProxyWithRetry(body, 2);
+    console.log('[anamnese] submitRegistro raw response', {httpOk, httpStatus, data});
+    if (!httpOk || errMsg) {
+      regWrap.innerHTML=`<div style="background:rgba(224,82,82,0.15);color:#E05252;padding:12px 16px;border-radius:12px;font-size:13px;border:1px solid rgba(224,82,82,0.2)">⚠ Erro ao avaliar o registro: ${errMsg||('HTTP '+httpStatus)} (já tentamos automaticamente algumas vezes). <button id="reg-retry-btn" style="margin-left:8px;text-decoration:underline;background:none;border:none;color:#E05252;cursor:pointer">Tentar novamente</button></div>`;
       const rb=document.getElementById('reg-retry-btn'); if(rb) rb.addEventListener('click',()=>submitRegistro(fb,mainWrap,regWrap));
       return;
     }
@@ -1348,7 +1369,7 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
     const col2 = scoreColor(nota2);
     const pct2 = nota2 !== null ? (nota2/10)*100 : 0;
 
-    const getSection=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n[A-Z_]+:|###INICIO|$)','i');const m=reply.match(rx);return m?m[1].trim():'';};
+    const getSection=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n(?:NOTA_REGISTRO|O_QUE_FOI_BEM|O_QUE_FALTOU|COMPARATIVOS):|###INICIO_COMPARATIVO###|$)','i');const m=reply.match(rx);return m?m[1].trim():'';};
     let oBem = getSection('O_QUE_FOI_BEM');
     let oFaltou = getSection('O_QUE_FALTOU');
     if (!oBem && !oFaltou) { oBem = `⚠ Não foi possível estruturar a avaliação. Resposta bruta da IA:\n\n${reply}`; }
@@ -1359,7 +1380,7 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
     let cm;
     while((cm=compRegex.exec(reply))!==null){
       const bloco=cm[1];
-      const get=(k)=>{const r=new RegExp(k+':\\s*([\\s\\S]*?)(?=\\n[A-Z]+:|$)','i');const m=bloco.match(r);return m?m[1].trim():'';};
+      const get=(k)=>{const r=new RegExp(k+':\\s*([\\s\\S]*?)(?=\\n(?:TITULO|ESCRITO|CORRETO|MOTIVO):|###FIM_COMPARATIVO###|$)','i');const m=bloco.match(r);return m?m[1].trim():'';};
       comparativos.push({titulo:get('TITULO'),escrito:get('ESCRITO'),correto:get('CORRETO'),motivo:get('MOTIVO')});
     }
 
@@ -1467,6 +1488,31 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
   } catch(e) { regWrap.innerHTML=`<div style="color:#E05252;font-size:13px;padding:.5rem">⚠ Erro: ${e.message}</div>`; }
 }
 
+// ── FETCH COM RETRY AUTOMÁTICO (erros transitórios de infra) ──
+const TRANSIENT_ERR = /overloaded|load failed|not having enough compute|timeout|network|fetch failed|econnreset|failed to fetch/i;
+async function fetchProxyWithRetry(body, maxRetries=2, onRetry=null) {
+  let lastResult;
+  for (let attempt=0; attempt<=maxRetries; attempt++) {
+    let data, httpOk=true, httpStatus=0;
+    try {
+      const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body});
+      httpOk=r.ok; httpStatus=r.status;
+      data=await r.json();
+    } catch(e){ data={error:{message:e.message}}; httpOk=false; }
+
+    const errMsg = data?.error?.message || (typeof data?.error==='string' ? data.error : null) || data?.message;
+    lastResult = {data, httpOk, httpStatus, errMsg};
+
+    if (httpOk && !errMsg) return lastResult; // sucesso
+    const isTransient = (!httpOk && (httpStatus>=500 || httpStatus===429)) || (errMsg && TRANSIENT_ERR.test(errMsg));
+    if (!isTransient || attempt>=maxRetries) return lastResult; // erro permanente, ou acabaram as tentativas
+
+    if (onRetry) onRetry(attempt+1, maxRetries);
+    await new Promise(res=>setTimeout(res, 1200*(attempt+1)));
+  }
+  return lastResult;
+}
+
 // ── API ──
 async function callAPI(userText, silent=false) {
   if(isLoading) return; isLoading=true; document.getElementById('send-btn').disabled=true;
@@ -1475,22 +1521,15 @@ async function callAPI(userText, silent=false) {
 
   const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:4096,temperature:0.6});
 
-  let data, httpOk=true, httpStatus=0;
-  try {
-    const r=await fetch('https://efgpiyrqfwdkabakpwhl.supabase.co/functions/v1/nvidia-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body});
-    httpOk=r.ok; httpStatus=r.status;
-    data=await r.json();
-  } catch(e){ data={error:{message:e.message}}; httpOk=false; }
+  const {data, httpOk, httpStatus, errMsg} = await fetchProxyWithRetry(body, 2);
 
   console.log('[anamnese] API raw response', {httpOk, httpStatus, data});
 
   hideTyping();
 
-  // erro explícito retornado pelo proxy
-  const errMsg = data?.error?.message || (typeof data?.error==='string' ? data.error : null) || data?.message;
   if (!httpOk || errMsg) {
     messages.pop(); // remove a mensagem do usuário que não teve resposta, pra poder reenviar
-    addErr(errMsg ? `Erro da API: ${errMsg}` : `Erro ao contatar o servidor (HTTP ${httpStatus}). Tente novamente.`);
+    addErr(errMsg ? `Erro da API: ${errMsg} (tentamos algumas vezes automaticamente — se persistir, é instabilidade no servidor)` : `Erro ao contatar o servidor (HTTP ${httpStatus}). Tente novamente.`);
     isLoading=false; document.getElementById('send-btn').disabled=false;
     return;
   }
