@@ -1175,8 +1175,23 @@ function addErr(txt) {
   d.textContent='⚠ '+txt; chat.appendChild(d); chat.scrollTop=99999;
 }
 
+// ── Descarta qualquer preâmbulo/raciocínio vazado antes do primeiro campo estruturado real ──
+function stripPreamble(text, markers) {
+  let earliestIdx = -1;
+  for (const m of markers) {
+    const idx = text.indexOf(m);
+    if (idx !== -1 && (earliestIdx === -1 || idx < earliestIdx)) earliestIdx = idx;
+  }
+  if (earliestIdx > 0) {
+    console.warn('[anamnese] Preâmbulo descartado antes do 1º campo estruturado:', text.slice(0, earliestIdx));
+    return text.slice(earliestIdx);
+  }
+  return text;
+}
+
 // ── PARSE FEEDBACK ──
 function parseFeedback(text) {
+  text = stripPreamble(text, ['NOME_PACIENTE:','NOTA_PERGUNTAS:','AVALIACAO_PERGUNTAS:','DIAGNOSTICO:']);
   const get=(key)=>{const rx=new RegExp(key+':\\s*([\\s\\S]*?)(?=\\n(?:NOME_PACIENTE|NOTA_PERGUNTAS|AVALIACAO_PERGUNTAS|DIAGNOSTICO):|$)','i');const m=text.match(rx);return m?m[1].trim():'';};
   const nota1raw=get('NOTA_PERGUNTAS');
   const nota1=parseFloat(nota1raw);
@@ -1348,7 +1363,7 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
 ]`;
 
   try {
-    const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:4096,temperature:0});
+    const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off\n\n'+regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:4096,temperature:0});
     const {data, httpOk, httpStatus, errMsg} = await fetchProxyWithRetry(body, 2);
     console.log('[anamnese] submitRegistro raw response', {httpOk, httpStatus, data});
     if (!httpOk || errMsg) {
@@ -1356,13 +1371,14 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
       const rb=document.getElementById('reg-retry-btn'); if(rb) rb.addEventListener('click',()=>submitRegistro(fb,mainWrap,regWrap));
       return;
     }
-    const reply=(data?.choices?.[0]?.message?.content||'').trim();
+    let reply=(data?.choices?.[0]?.message?.content||'').trim();
     if (!reply) {
       console.warn('[anamnese] submitRegistro: resposta vazia da IA', data);
       regWrap.innerHTML=`<div style="background:rgba(224,82,82,0.15);color:#E05252;padding:12px 16px;border-radius:12px;font-size:13px;border:1px solid rgba(224,82,82,0.2)">⚠ A IA retornou uma resposta vazia ao avaliar o registro. <button id="reg-retry-btn" style="margin-left:8px;text-decoration:underline;background:none;border:none;color:#E05252;cursor:pointer">Tentar novamente</button></div>`;
       const rb=document.getElementById('reg-retry-btn'); if(rb) rb.addEventListener('click',()=>submitRegistro(fb,mainWrap,regWrap));
       return;
     }
+    reply = stripPreamble(reply, ['NOTA_REGISTRO:','O_QUE_FOI_BEM:','O_QUE_FALTOU:','COMPARATIVOS:']);
     const nota2match=reply.match(/NOTA_REGISTRO:\s*([\d.]+)/i);
     const nota2=nota2match?parseFloat(nota2match[1]):null;
     if (nota2===null) console.warn('[anamnese] Não foi possível extrair NOTA_REGISTRO — texto bruto:', reply);
@@ -1519,7 +1535,7 @@ async function callAPI(userText, silent=false) {
   if(!silent) addMsg('user',userText);
   messages.push({role:'user',content:userText}); showTyping();
 
-  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off'},{role:'system',content:buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:4096,temperature:0.6});
+  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off\n\n'+buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:4096,temperature:0.6});
 
   const {data, httpOk, httpStatus, errMsg} = await fetchProxyWithRetry(body, 2);
 
@@ -1534,7 +1550,7 @@ async function callAPI(userText, silent=false) {
     return;
   }
 
-  const reply=(data?.choices?.[0]?.message?.content||'').trim();
+  let reply=(data?.choices?.[0]?.message?.content||'').trim();
 
   // resposta 200 mas sem conteúdo utilizável — não mostra bolha vazia
   if (!reply) {
@@ -1550,6 +1566,9 @@ async function callAPI(userText, silent=false) {
     return;
   }
 
+  if (reply.includes('NOTA_PERGUNTAS:')) {
+    reply = stripPreamble(reply, ['NOME_PACIENTE:','NOTA_PERGUNTAS:','AVALIACAO_PERGUNTAS:','DIAGNOSTICO:']);
+  }
   messages.push({role:'assistant',content:reply});
 
   if(reply.includes('NOTA_PERGUNTAS')){
