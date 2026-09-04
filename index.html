@@ -1069,7 +1069,9 @@ const PED_REG_CRITERIOS = `1. Identificação do paciente e do informante presen
 function buildPrompt() {
   const d={'Fácil':'simples e objetivos','Médio':'moderados com histórico relevante','Difícil':'complexos com múltiplas comorbidades e distratores'};
   const pedExtra=isPed?'\nO paciente é uma CRIANÇA — o responsável responde. Inclua características pediátricas: desenvolvimento, vacinação, aleitamento, história perinatal.':'';
-  return `Você simula um paciente para treino de anamnese de um estudante de medicina — especialidade: ${specialty}.
+  return `⚠️ IMPORTANTE — FORMATO DE RESPOSTA: Responda SEMPRE em português do Brasil. NUNCA exiba raciocínio interno, rascunhos, dúvidas ou o processo de pensamento na resposta — mostre APENAS o resultado final, direto, sem preâmbulo, sem repetir estas instruções, sem comentar o que você vai fazer antes de fazer. Os textos entre colchetes [ ] no formato abaixo são INSTRUÇÕES do que escrever — substitua-os pelo conteúdo real. NUNCA copie ou parafraseie o texto entre colchetes.
+
+Você simula um paciente para treino de anamnese de um estudante de medicina — especialidade: ${specialty}.
 
 IDENTIDADE DO PACIENTE — REGRAS DE CRIAÇÃO:
 - Crie um paciente ÚNICO e DIFERENTE a cada sessão. NUNCA repita nomes como "João Silva" ou similares.
@@ -1304,7 +1306,9 @@ async function submitRegistro(fb, mainWrap, regWrap) {
   if(!text||text.length<20){alert('Escreva o registro antes de enviar.');return;}
   regWrap.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text3);font-size:13px;letter-spacing:.03em">⏳ &nbsp;Avaliando seu registro...</div>';
 
-  const regPrompt=`Você é um professor de semiologia médica avaliando o registro escrito de uma anamnese feita por um estudante de medicina.
+  const regPrompt=`⚠️ IMPORTANTE — FORMATO DE RESPOSTA: Responda SEMPRE em português do Brasil. NUNCA exiba raciocínio interno, rascunhos, dúvidas ou o processo de pensamento na resposta — mostre APENAS o resultado final, direto, sem preâmbulo, sem repetir estas instruções, sem comentar o que você vai fazer antes de fazer. Os textos entre colchetes [ ] no formato abaixo são INSTRUÇÕES do que escrever — substitua-os pelo conteúdo real. NUNCA copie ou parafraseie o texto entre colchetes.
+
+Você é um professor de semiologia médica avaliando o registro escrito de uma anamnese feita por um estudante de medicina.
 
 CONTEXTO:
 - Especialidade: ${specialty}
@@ -1363,7 +1367,7 @@ MOTIVO: [em 1 linha: por que essa forma é a correta]
 ]`;
 
   try {
-    const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off\n\n'+regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:4096,temperature:0});
+    const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off\n\n'+regPrompt},{role:'user',content:'Avalie o registro conforme as instruções.'}],max_tokens:8192,temperature:0});
     const {data, httpOk, httpStatus, errMsg} = await fetchProxyWithRetry(body, 2);
     console.log('[anamnese] submitRegistro raw response', {httpOk, httpStatus, data});
     if (!httpOk || errMsg) {
@@ -1535,7 +1539,7 @@ async function callAPI(userText, silent=false) {
   if(!silent) addMsg('user',userText);
   messages.push({role:'user',content:userText}); showTyping();
 
-  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off\n\n'+buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:4096,temperature:0.6});
+  const body=JSON.stringify({model:'nvidia/nemotron-3-super-120b-a12b',messages:[{role:'system',content:'detailed thinking off\n\n'+buildPrompt()},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content}))],max_tokens:8192,temperature:0.6});
 
   const {data, httpOk, httpStatus, errMsg} = await fetchProxyWithRetry(body, 2);
 
